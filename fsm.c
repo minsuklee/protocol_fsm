@@ -96,7 +96,7 @@ static void report_connect(void *p)
 {
     printf("Connected\n");
     set_timer(0);           // Stop Timer
-    // report connection made to upper layer
+    // Report connection made to upper layer
 }
 
 static void passive_con(void *p)
@@ -186,6 +186,7 @@ Protocol_Loop(void)
     timer_init();
     while (1) {
         printf("Current Stat = %s\n", st_name[c_state]);
+
         /* Step 0: Get Input Event */
         eventp = get_event();
 
