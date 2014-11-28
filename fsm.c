@@ -18,11 +18,11 @@
 #define NUM_STATE   3
 #define NUM_EVENT   8
 
-enum { F_CON, F_ACK, F_FIN, F_DATA };       // Packet Type
-enum { wait_CON, CON_sent, CONNECTED };     // States
+enum pakcet_type { F_CON, F_ACK, F_FIN, F_DATA };       // Packet Type
+enum proto_state { wait_CON, CON_sent, CONNECTED };     // States
 
 // Events
-enum { RCV_CON, RCV_FIN, RCV_ACK, RCV_DATA, CONNECT, CLOSE, SEND, TIMEOUT };
+enum proto_event { RCV_CON, RCV_FIN, RCV_ACK, RCV_DATA, CONNECT, CLOSE, SEND, TIMEOUT };
 
 char *pkt_name[] = { "F_CON", "F_ACK", "F_FIN", "F_DATA" };
 char *st_name[] =  { "wait_CON", "CON_sent", "CONNECTED" };
@@ -31,23 +31,23 @@ char *ev_name[] =  { "RCV_CON", "RCV_FIN", "RCV_ACK", "RCV_DATA",
 
 struct state_action {           // Protocol FSM Structure
     void (* action)(void *p);
-    int next_state;
+    enum proto_state next_state;
 };
 
 struct p_event {                // Event Structure
-    int event;
+    enum proto_event event;
     void *data;
     int size;
 };
 
 #define MAX_DATA_SIZE   (500)
-struct packet {                 // 503 Byte Packet to & from Simulator
-    unsigned char type;
+struct packet {                 // 504 Byte Packet to & from Simulator
+    unsigned short type;        // enum packet_type
     unsigned short size;
     char data[MAX_DATA_SIZE];
 };
 
-int c_state = wait_CON;         // Initial State
+enum proto_state c_state = wait_CON;         // Initial State
 volatile int timedout = 0;
 
 static void timer_handler(int signum)
