@@ -120,28 +120,32 @@ static void close_con(void *p)
 
 static void send_data(void *p)
 {
-    printf("Send Data to peer %p\n", p);
+    printf("Send Data to peer size:%d\n", ((struct p_event*)p)->size);
     send_packet(F_DATA, ((struct p_event *)p)->data, ((struct p_event *)p)->size);
 }
 
 static void report_data(void *p)
 {
-    printf("Data Arrived %p\n", p);
+    printf("Data Arrived size:%d\n", ((struct p_event*)p)->size);
     // Queue received data for upper layer user
 }
 
 struct state_action p_FSM[NUM_STATE][NUM_EVENT] = {
-    // wait_CON state
-    { { passive_con, CONNECTED }, { NULL, wait_CON },      { NULL, wait_CON },            { NULL, wait_CON },
-      { active_con,  CON_sent },  { NULL, wait_CON },      { NULL, wait_CON },            { NULL, wait_CON } },
+  //  for each event:
+  //  RCV_CON,                    RCV_FIN,                 RCV_ACK,                       RCV_DATA,
+  //  CONNECT,                    CLOSE,                   SEND,                          TIMEOUT
 
-    // CON_sent state
-    { { passive_con, CONNECTED }, { close_con, wait_CON }, { report_connect, CONNECTED }, { NULL,      CON_sent },
-      { NULL,        CON_sent },  { close_con, wait_CON }, { NULL,           CON_sent },  { close_con, wait_CON } },
+  // - wait_CON state
+  {{ passive_con, CONNECTED }, { NULL, wait_CON },      { NULL, wait_CON },            { NULL, wait_CON },
+   { active_con,  CON_sent },  { NULL, wait_CON },      { NULL, wait_CON },            { NULL, wait_CON }},
 
-    // CONNECTED state
-    { { NULL, CONNECTED },        { close_con, wait_CON }, { NULL,      CONNECTED },      { report_data, CONNECTED },
-      { NULL, CONNECTED },        { close_con, wait_CON }, { send_data, CONNECTED },      { NULL,        CONNECTED } },
+  // - CON_sent state
+  {{ passive_con, CONNECTED }, { close_con, wait_CON }, { report_connect, CONNECTED }, { NULL,      CON_sent },
+   { NULL,        CON_sent },  { close_con, wait_CON }, { NULL,           CON_sent },  { close_con, wait_CON }},
+
+  // - CONNECTED state
+  {{ NULL, CONNECTED },        { close_con, wait_CON }, { NULL,      CONNECTED },      { report_data, CONNECTED },
+   { NULL, CONNECTED },        { close_con, wait_CON }, { send_data, CONNECTED },      { NULL,        CONNECTED }},
 };
 
 struct p_event *get_event(void)
@@ -152,9 +156,12 @@ struct p_event *get_event(void)
     char test_event[10];
     int i;
 
+    event.data = NULL;
+    event.size = 0;
+loop:
     while (scanf("%s", test_event) <= 0) {
         // scanf() returns error on signal (timer)
-        if ((errno == EINTR) && timedout) {
+        if ((errno == EINTR) && timedout) { // ALARM signal Catched !!
             timedout = 0;
             i = TIMEOUT;
             goto got_it;
@@ -164,8 +171,10 @@ struct p_event *get_event(void)
     for (i = 0; i < NUM_EVENT; i++)
         if (!strcasecmp(test_event, ev_name[i]))
             goto got_it;
+    if (!strcasecmp(test_event, "quit"))
+        return NULL;
     fprintf(stderr, "%s : BAD EVENT NAME\n", test_event);
-    exit(1);
+    goto loop;
 got_it:
     event.event = i;
     // No data
@@ -188,11 +197,14 @@ Protocol_Loop(void)
         printf("Current Stat = %s\n", st_name[c_state]);
 
         /* Step 0: Get Input Event */
-        eventp = get_event();
+        if((eventp = get_event()) == NULL)
+            break;
 
         /* Step 1: Do Action */
         if (p_FSM[c_state][eventp->event].action)
-            p_FSM[c_state][eventp->event].action(eventp->data);
+            p_FSM[c_state][eventp->event].action(eventp);
+        else
+            printf("No Action for this event\n");
 
         /* Step 2: Set Next State */
         c_state = p_FSM[c_state][eventp->event].next_state;
@@ -205,6 +217,8 @@ main(int argc, char *argv[])
     // INITIALIZE USER THREAD
     // SIMULATOR_INITIALIZE
 
+    printf("Entering protocol loop...\n");
+    printf("type 'CONNECT', 'CLOSE', 'SEND', or 'QUIT'\n");
     Protocol_Loop();
 
     // SIMULATOR_CLOSE
